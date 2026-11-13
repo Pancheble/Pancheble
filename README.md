@@ -28,9 +28,11 @@
 
 <!-- banner -->
 <p>
+<a href="https://x.com/030_bv/status/2095118743928291753">
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/banner-dark.svg">
   <img src="assets/banner-light.svg" width="100%" alt="She is my wife.">
 </picture>
+</a>
 </p>
 <!-- /banner -->
