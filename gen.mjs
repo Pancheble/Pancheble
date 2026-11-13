@@ -12,8 +12,9 @@ const CONFIG = {
   // caption: 그림 아래 띠 왼쪽 문구, credit: 띠 오른쪽 출처 (README에서 그림을 누르면 출처로 이동)
   banner: {
     height: 360, caption: 'She is my wife.',
-    am: { image: 'images/banner-am.jpg', credit: null },
-    pm: { image: 'images/banner-pm.jpg', credit: { text: '@030_bv', url: 'https://x.com/030_bv/status/2095118743928291753' } },
+    credit: { text: '@030_bv', url: 'https://x.com/030_bv/status/2095118743928291753' }, // 두 그림 모두 이 게시물
+    am: { image: 'images/banner-am.jpg' },
+    pm: { image: 'images/banner-pm.jpg' },
   },
   // 프로젝트 카드 한 장에 한 줄씩, 이 순서대로
   // icon: 레포 안 이미지 경로(svg·png·jpg·webp). 비우면 이름 첫 글자를 넣음
