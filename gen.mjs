@@ -3,15 +3,18 @@
 // 출력: assets/<카드>-light.svg, assets/<카드>-dark.svg, README.md의 배너 칸
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { extname } from 'node:path'
+import { deflateSync } from 'node:zlib'
 
 // ── 여기만 고치면 됨 ─────────────────────────────────────────
 const CONFIG = {
   tagline: 'Jobless, but AX-ing everything',
   // 이미지 자리: 한국 시각 오전(0~11시)엔 am, 오후엔 pm 그림. Actions가 0시·12시에 다시 그림
   // image: 레포 안 이미지 경로(png·jpg·gif·webp). 840×height 카드에 꽉 차게 가운데 기준으로 잘림
-  // caption: 그림 아래 띠 왼쪽 문구, credit: 띠 오른쪽 출처 (README에서 그림을 누르면 출처로 이동)
+  // caption: 아래 유리 패널 왼쪽 문구, credit: 패널 오른쪽 출처 (README에서 그림을 누르면 출처로 이동)
   banner: {
-    height: 360, caption: 'She is my wife.',
+    height: 412, caption: 'She is my wife.',
+    glass: 'liquid', // 아래 알약 패널 재질: 'frost'(서리 유리, 뒤가 흐림) | 'liquid'(리퀴드 글래스, 투명 + 가장자리 굴절)
+    dispersion: 0.15, // liquid일 때 색수차 세기. 0 = 없음, 0.15 = 은은하게, 0.4 = 눈에 띄게
     credit: { text: '@030_bv', url: 'https://x.com/030_bv/status/2095118743928291753' }, // 두 그림 모두 이 게시물
     am: { image: 'images/banner-am.jpg' },
     pm: { image: 'images/banner-pm.jpg' },
@@ -31,12 +34,15 @@ const CONFIG = {
 
 // 지금이 한국 시각 오전이면 am, 오후면 pm 그림. BANNER=am|pm 으로 강제할 수 있음(미리보기용)
 const HALF = process.env.BANNER || (new Date(Date.now() + 9 * 3600e3).getUTCHours() < 12 ? 'am' : 'pm')
-const BANNER = { ...CONFIG.banner, ...CONFIG.banner[HALF] }
+const BANNER = { ...CONFIG.banner, ...CONFIG.banner[HALF], ...(process.env.GLASS && { glass: process.env.GLASS }),
+  ...(process.env.DISPERSION && { dispersion: +process.env.DISPERSION }) }
 
 const THEMES = {
-  light: { card: '#ffffff', line: '#e0e0e0', divider: 'rgba(0,0,0,0.08)', dash: '#c7c7cc', chip: '#e8e8ed', ink: '#1d1d1f', sub: '#636366', link: '#0066cc', zero: '#d2d2d7', bar: '#d2d2d7', dim: 0 },
+  light: { card: '#ffffff', line: '#e0e0e0', divider: 'rgba(0,0,0,0.08)', dash: '#c7c7cc', chip: '#e8e8ed', ink: '#1d1d1f', sub: '#636366', link: '#0066cc', zero: '#d2d2d7', bar: '#d2d2d7', dim: 0,
+    glassTop: 'rgba(255,255,255,0.5)', glassBot: 'rgba(255,255,255,0.22)', rim: 'rgba(255,255,255,0.65)', shine: 'rgba(255,255,255,0.9)', gsub: 'rgba(29,29,31,0.72)', liquid: 'rgba(255,255,255,0.3)' },
   // 다크는 GitHub 다크 테마 색에 맞춤: 카드 = 페이지 배경(#0d1117) + 테두리만 (라이트와 같은 방식)
-  dark: { card: '#0d1117', line: '#3d444d', divider: '#262c36', dash: '#3d444d', chip: '#262c36', ink: '#f0f6fc', sub: '#9198a1', link: '#4493f8', zero: '#3d444d', bar: '#3d444d', dim: 0.08 },
+  dark: { card: '#0d1117', line: '#3d444d', divider: '#262c36', dash: '#3d444d', chip: '#262c36', ink: '#f0f6fc', sub: '#9198a1', link: '#4493f8', zero: '#3d444d', bar: '#3d444d', dim: 0.08,
+    glassTop: 'rgba(40,46,56,0.55)', glassBot: 'rgba(13,17,23,0.4)', rim: 'rgba(255,255,255,0.18)', shine: 'rgba(255,255,255,0.25)', gsub: 'rgba(240,246,252,0.72)', liquid: 'rgba(13,17,23,0.36)' },
 }
 const OFFLINE = '#8e8e93'
 const SANS = "'IBM Plex Sans KR',-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic',system-ui,sans-serif"
@@ -156,13 +162,85 @@ ${txt(W - 24, 36, note, 13, t.sub, ' text-anchor="end"')}${txt(W - 24 - textW(no
 ${bars}`]
 }
 
-// 이미지 자리. 그림 아래에 카드 색 띠(문구·출처)를 붙여 라이트·다크 모두 다른 카드와 맞춤
+// ── 리퀴드 글래스 굴절 지도 (의존성 없이 PNG를 직접 만듦) ──
+const crc32 = buf => {
+  let c = ~0
+  for (const b of buf) { c ^= b; for (let k = 0; k < 8; k++) c = (c >>> 1) ^ (0xEDB88320 & -(c & 1)) }
+  return ~c >>> 0
+}
+const pngChunk = (type, data) => {
+  const body = Buffer.concat([Buffer.from(type), data]), len = Buffer.alloc(4), crc = Buffer.alloc(4)
+  len.writeUInt32BE(data.length); crc.writeUInt32BE(crc32(body))
+  return Buffer.concat([len, body, crc])
+}
+const png = (w, h, pixel) => { // pixel(x, y) → [r, g, b]
+  const row = w * 3 + 1, raw = Buffer.alloc(row * h)
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) raw.set(pixel(x, y), y * row + 1 + x * 3)
+  const ihdr = Buffer.alloc(13)
+  ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4); ihdr[8] = 8; ihdr[9] = 2 // 8비트 RGB
+  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), pngChunk('IHDR', ihdr), pngChunk('IDAT', deflateSync(raw)), pngChunk('IEND', Buffer.alloc(0))])
+}
+// 알약(w×h, 끝이 반원) 안의 점마다 "어디서 가져와 그릴지"를 R(가로)·G(세로)에 담음. 128 = 그대로.
+// 가장자리에서 edge px 안쪽까지는 안쪽 방향으로 최대 shift px 당겨 와서 렌즈처럼 휘어 보이게 함
+const LENS_SCALE = 32
+const lensMap = (w, h, edge, shift) => {
+  const r = h / 2, k = 2 // 2배 해상도로 만들어 부드럽게
+  const buf = png(w * k, h * k, (X, Y) => {
+    const x = (X + 0.5) / k, y = (Y + 0.5) / k
+    const vx = x - Math.min(Math.max(x, r), w - r), vy = y - r, len = Math.hypot(vx, vy)
+    const t = Math.max(0, 1 - Math.max(0, r - len) / edge), s = t * t * shift
+    const dx = len ? (-vx / len) * s : 0, dy = len ? (-vy / len) * s : 0
+    const ch = v => Math.max(0, Math.min(255, Math.round(255 * (0.5 + v / LENS_SCALE))))
+    return [ch(dx), ch(dy), 128]
+  })
+  return `data:image/png;base64,${buf.toString('base64')}`
+}
+
+// 이미지 자리. 그림이 카드를 꽉 채우고, 아래에 알약 모양 유리 패널(문구·출처)을 띄움.
+// SVG는 뒤를 흐리는 기능이 없어서, 패널 자리에 같은 그림을 한 번 더 깔고 필터로 유리처럼 만듦
 const banner = (d, t) => {
-  const { image, height: IH = 360, caption, credit } = BANNER
-  const H = IH + (caption || credit ? 52 : 0)
-  return [H, `${card(0, 0, W, H, t)}<clipPath id="bn"><rect width="${W}" height="${H}" rx="18"/></clipPath>
-<g clip-path="url(#bn)"><image href="${dataUri(image)}" width="${W}" height="${IH}" preserveAspectRatio="xMidYMid slice"/>${t.dim ? `<rect width="${W}" height="${IH}" fill="#000" opacity="${t.dim}"/>` : ''}</g>
-${H > IH ? `<line x1="0" y1="${IH + 0.5}" x2="${W}" y2="${IH + 0.5}" stroke="${t.line}"/>` : ''}${caption ? txt(24, IH + 31, caption, 15, t.ink, ' font-weight="600"') : ''}${credit ? txt(W - 24, IH + 30, `Illustration · ${credit.text}`, 12, t.sub, ' text-anchor="end"') : ''}
+  const { image, height: H = 412, caption, credit, glass, dispersion: k = 0 } = BANNER, liquid = glass === 'liquid'
+  const ph = 40, r = ph / 2, px = 16, py = H - px - ph, pw = W - px * 2
+  const pane = `x="${px}" y="${py}" width="${pw}" height="${ph}" rx="${r}"`
+  // 서리 유리: 크게 흐림(사본을 키워 가장자리 흐림이 비지 않게).
+  // 리퀴드: 거의 투명 + 진짜 굴절(feDisplacementMap). 필터 범위를 알약과 똑같이 두고 지도를 그 범위에
+  // 꽉 채워서(feImage에 x/y를 안 줌) 브라우저마다 지도 위치가 어긋나지 않게 함
+  const zoom = (s, cx = W / 2, cy = H / 2) => `translate(${cx} ${cy}) scale(${s}) translate(${-cx} ${-cy})`
+  // 색수차: 빨강은 (1+k)배, 파랑은 (1-k)배 더 휘게 따로 굴절시킨 뒤 색 채널끼리 합침. 가운데는 안 휘니 가장자리에만 색이 갈라짐
+  const bend = (s, out) => `<feDisplacementMap in="SourceGraphic" in2="map" scale="${(LENS_SCALE * s).toFixed(2)}" xChannelSelector="R" yChannelSelector="G" result="${out}"/>`
+  const KEEP = ['1 0 0 0 0  0 0 0 0 0  0 0 0 0 0', '0 0 0 0 0  0 1 0 0 0  0 0 0 0 0', '0 0 0 0 0  0 0 0 0 0  0 0 1 0 0'] // 빨강만·초록만·파랑만
+  const only = (from, i, out) => `<feColorMatrix in="${from}" values="${KEEP[i]}  0 0 0 1 0" result="${out}"/>`
+  const refract = k
+    ? `${bend(1 + k, 'dr')}${bend(1, 'dg')}${bend(1 - k, 'db')}
+${only('dr', 0, 'r')}${only('dg', 1, 'g')}${only('db', 2, 'b')}
+<feBlend in="r" in2="g" mode="screen" result="rg"/><feBlend in="rg" in2="b" mode="screen"/>`
+    : bend(1, 'bent')
+  const filter = liquid
+    ? `<filter id="glass" filterUnits="userSpaceOnUse" x="${px}" y="${py}" width="${pw}" height="${ph}" color-interpolation-filters="sRGB">
+<feImage href="${lensMap(pw, ph, 16, 14)}" preserveAspectRatio="none" result="map"/>
+${refract}
+<feGaussianBlur stdDeviation="0.5"/><feColorMatrix type="saturate" values="1.35"/></filter>`
+    : `<filter id="glass"><feGaussianBlur stdDeviation="12"/><feColorMatrix type="saturate" values="1.8"/></filter>`
+  const copy = liquid ? '<use href="#art" filter="url(#glass)"/>' : `<use href="#art" filter="url(#glass)" transform="${zoom(1.08)}"/>`
+  // 리퀴드는 가장자리를 따라 빛이 도는 테두리(왼쪽 위·오른쪽 아래가 밝음), 서리는 위쪽 반사선 한 줄
+  const rim = liquid
+    ? `<linearGradient id="rim" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.95"/><stop offset="0.35" stop-color="#fff" stop-opacity="0.15"/><stop offset="0.65" stop-color="#fff" stop-opacity="0.1"/><stop offset="1" stop-color="#fff" stop-opacity="0.7"/></linearGradient>`
+    : ''
+  const tint = liquid ? t.liquid : 'url(#tint)'
+  return [H, `${card(0, 0, W, H, t)}<defs>
+<image id="art" href="${dataUri(image)}" width="${W}" height="${H}" preserveAspectRatio="xMidYMid slice"/>
+<clipPath id="bn"><rect width="${W}" height="${H}" rx="18"/></clipPath>
+<clipPath id="pane"><rect ${pane}/></clipPath>
+${filter}
+<filter id="soft" x="-10%" y="-80%" width="120%" height="260%"><feGaussianBlur stdDeviation="8"/></filter>
+<linearGradient id="tint" x2="0" y2="1"><stop offset="0" stop-color="${t.glassTop}"/><stop offset="1" stop-color="${t.glassBot}"/></linearGradient>${rim}
+</defs>
+<g clip-path="url(#bn)"><use href="#art"/>${t.dim ? `<rect width="${W}" height="${H}" fill="#000" opacity="${t.dim}"/>` : ''}
+<rect x="${px}" y="${py + 6}" width="${pw}" height="${ph}" rx="${r}" fill="#000" opacity="${liquid ? 0.12 : 0.16}" filter="url(#soft)"/>
+<g clip-path="url(#pane)">${copy}</g></g>
+<rect x="${px + 0.5}" y="${py + 0.5}" width="${pw - 1}" height="${ph - 1}" rx="${r - 0.5}" fill="${tint}" stroke="${liquid ? 'url(#rim)' : t.rim}"${liquid ? ' stroke-width="1.2"' : ''}/>
+${liquid ? '' : `<line x1="${px + r}" y1="${py + 1.5}" x2="${W - px - r}" y2="${py + 1.5}" stroke="${t.shine}"/>`}
+${caption ? txt(px + 22, py + 25, caption, 15, t.ink, ' font-weight="600"') : ''}${credit ? txt(W - px - 22, py + 24, `Illustration · ${credit.text}`, 12, t.gsub, ' text-anchor="end"') : ''}
 <rect x="0.5" y="0.5" width="${W - 1}" height="${H - 1}" rx="18" fill="none" stroke="${t.line}"/>`]
 }
 
