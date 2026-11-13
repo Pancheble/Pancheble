@@ -26,7 +26,8 @@ const CONFIG = {
 
 const THEMES = {
   light: { card: '#ffffff', line: '#e0e0e0', divider: 'rgba(0,0,0,0.08)', dash: '#c7c7cc', chip: '#e8e8ed', ink: '#1d1d1f', sub: '#636366', link: '#0066cc', zero: '#d2d2d7', bar: '#d2d2d7', dim: 0 },
-  dark: { card: '#1d1d1f', line: 'rgba(255,255,255,0.14)', divider: 'rgba(255,255,255,0.14)', dash: 'rgba(255,255,255,0.28)', chip: '#3a3a3c', ink: '#ffffff', sub: '#a1a1a6', link: '#2997ff', zero: 'rgba(255,255,255,0.2)', bar: '#3a3a3c', dim: 0.08 },
+  // 다크는 GitHub 다크 테마 색에 맞춤: 카드 = 페이지 배경(#0d1117) + 테두리만 (라이트와 같은 방식)
+  dark: { card: '#0d1117', line: '#3d444d', divider: '#262c36', dash: '#3d444d', chip: '#262c36', ink: '#f0f6fc', sub: '#9198a1', link: '#4493f8', zero: '#3d444d', bar: '#3d444d', dim: 0.08 },
 }
 const OFFLINE = '#8e8e93'
 const SANS = "'IBM Plex Sans KR',-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic',system-ui,sans-serif"
