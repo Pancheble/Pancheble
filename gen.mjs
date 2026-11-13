@@ -7,10 +7,14 @@ import { extname } from 'node:path'
 // ── 여기만 고치면 됨 ─────────────────────────────────────────
 const CONFIG = {
   tagline: 'Jobless, but AX-ing everything',
-  // 이미지 자리: 레포 안 이미지 경로(png·jpg·gif·webp). 비우면 이 칸은 README에서 빠짐
-  // 840×height 카드에 꽉 차게 가운데 기준으로 잘림
+  // 이미지 자리: 한국 시각 오전(0~11시)엔 am, 오후엔 pm 그림. Actions가 0시·12시에 다시 그림
+  // image: 레포 안 이미지 경로(png·jpg·gif·webp). 840×height 카드에 꽉 차게 가운데 기준으로 잘림
   // caption: 그림 아래 띠 왼쪽 문구, credit: 띠 오른쪽 출처 (README에서 그림을 누르면 출처로 이동)
-  banner: { image: 'images/banner.jpg', height: 360, caption: 'She is my wife.', credit: { text: '@030_bv', url: 'https://x.com/030_bv/status/2095118743928291753' } },
+  banner: {
+    height: 360, caption: 'She is my wife.',
+    am: { image: 'images/banner-am.jpg', credit: null },
+    pm: { image: 'images/banner-pm.jpg', credit: { text: '@030_bv', url: 'https://x.com/030_bv/status/2095118743928291753' } },
+  },
   // 프로젝트 카드 한 장에 한 줄씩, 이 순서대로
   // icon: 레포 안 이미지 경로(svg·png·jpg·webp). 비우면 이름 첫 글자를 넣음
   // status: 'active' | 'planned'. planned만 Planned 배지가 붙고 아이콘이 흐려짐
@@ -23,6 +27,10 @@ const CONFIG = {
   ],
 }
 // ─────────────────────────────────────────────────────────────
+
+// 지금이 한국 시각 오전이면 am, 오후면 pm 그림. BANNER=am|pm 으로 강제할 수 있음(미리보기용)
+const HALF = process.env.BANNER || (new Date(Date.now() + 9 * 3600e3).getUTCHours() < 12 ? 'am' : 'pm')
+const BANNER = { ...CONFIG.banner, ...CONFIG.banner[HALF] }
 
 const THEMES = {
   light: { card: '#ffffff', line: '#e0e0e0', divider: 'rgba(0,0,0,0.08)', dash: '#c7c7cc', chip: '#e8e8ed', ink: '#1d1d1f', sub: '#636366', link: '#0066cc', zero: '#d2d2d7', bar: '#d2d2d7', dim: 0 },
@@ -149,7 +157,7 @@ ${bars}`]
 
 // 이미지 자리. 그림 아래에 카드 색 띠(문구·출처)를 붙여 라이트·다크 모두 다른 카드와 맞춤
 const banner = (d, t) => {
-  const { image, height: IH = 360, caption, credit } = CONFIG.banner
+  const { image, height: IH = 360, caption, credit } = BANNER
   const H = IH + (caption || credit ? 52 : 0)
   return [H, `${card(0, 0, W, H, t)}<clipPath id="bn"><rect width="${W}" height="${H}" rx="18"/></clipPath>
 <g clip-path="url(#bn)"><image href="${dataUri(image)}" width="${W}" height="${IH}" preserveAspectRatio="xMidYMid slice"/>${t.dim ? `<rect width="${W}" height="${IH}" fill="#000" opacity="${t.dim}"/>` : ''}</g>
@@ -206,7 +214,7 @@ async function fontCss(chars) {
 
 const { GH_USER, GITHUB_TOKEN } = process.env
 const d = GITHUB_TOKEN ? await fetchData(GH_USER, GITHUB_TOKEN) : DEMO
-const cards = { header, stats, hours, projects, ...(CONFIG.banner.image && { banner }) }
+const cards = { header, stats, hours, projects, ...(BANNER.image && { banner }) }
 const out = []
 for (const [name, render] of Object.entries(cards))
   for (const [mode, t] of Object.entries(THEMES)) {
@@ -225,7 +233,7 @@ const setBlock = (md, name, html) => {
   return md.replace(new RegExp(`<!-- ${name} -->[\\s\\S]*<!-- /${name} -->`), `<!-- ${name} -->\n${html}\n<!-- /${name} -->`)
 }
 let readme = readFileSync('README.md', 'utf8')
-const { image, caption, credit } = CONFIG.banner, pic = picture('banner', caption || '배너 이미지')
+const { image, caption, credit } = BANNER, pic = picture('banner', caption || '배너 이미지')
 readme = setBlock(readme, 'banner', !image ? '' : `<p>\n${credit ? `<a href="${esc(credit.url)}">\n${pic}\n</a>` : pic}\n</p>`)
 writeFileSync('README.md', readme)
 console.log(`${GITHUB_TOKEN ? `rendered for ${GH_USER}` : 'no GITHUB_TOKEN → demo data'} → ${out.length} files, fonts ${fonts ? 'embedded' : 'system'}`)

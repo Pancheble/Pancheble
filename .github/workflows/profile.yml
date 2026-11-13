@@ -1,8 +1,9 @@
 name: profile cards
 on:
-  schedule: [{ cron: '0 0 * * *' }] # 매일 09:00 KST
+  # 매일 00:00·12:00 KST (UTC 15시·3시). 오전·오후 그림이 이때 바뀜
+  schedule: [{ cron: '0 15 * * *' }, { cron: '0 3 * * *' }]
   workflow_dispatch:
-  push: { branches: [main], paths: [gen.mjs] }
+  push: { branches: [main], paths: [gen.mjs, 'images/**'] }
 permissions: { contents: write }
 jobs:
   render:
