@@ -21,10 +21,11 @@ const CONFIG = {
   },
   // 프로젝트 카드 한 장에 한 줄씩, 이 순서대로
   // icon: 레포 안 이미지 경로(svg·png·jpg·webp). 비우면 이름 첫 글자를 넣음
-  // status: 'active' | 'planned'. planned만 Planned 배지가 붙고 아이콘이 흐려짐
+  // status: 'active' | 'planned' | 'archived'. planned(회색 점)·archived(노란 점)는 배지가 붙고, planned는 아이콘이 흐려짐
+  // url: 있으면 README에서 그 줄을 누르면 이동
   projects: [
-    { name: 'omagari', desc: 'AX for teams', lang: 'TypeScript', status: 'active', icon: 'icons/omagari.svg' },
-    { name: 'kagami', desc: 'AX for focused work', lang: 'TypeScript', status: 'active', icon: 'icons/kagami.svg' },
+    { name: 'omagari', desc: 'AX for teams', lang: 'TypeScript', status: 'active', icon: 'icons/omagari.svg', url: 'https://github.com/Pancheble/omagari' },
+    { name: 'kagami', desc: 'AX for focused work', lang: 'TypeScript', status: 'archived', icon: 'icons/kagami.svg', url: 'https://github.com/Pancheble/kagami' },
     { name: 'konuri', desc: 'AX for …', status: 'planned', icon: 'icons/konuri.svg' },
     { name: 'otose', desc: 'AX for …', status: 'planned', icon: 'icons/otose.svg' },
     { name: 'akeboshi', desc: 'AX for …', status: 'planned', icon: 'icons/akeboshi.svg' },
@@ -39,10 +40,10 @@ const BANNER = { ...CONFIG.banner, ...CONFIG.banner[HALF], ...(process.env.GLASS
 
 const THEMES = {
   light: { card: '#ffffff', line: '#e0e0e0', divider: 'rgba(0,0,0,0.08)', dash: '#c7c7cc', chip: '#e8e8ed', ink: '#1d1d1f', sub: '#636366', link: '#0066cc', zero: '#d2d2d7', bar: '#d2d2d7', dim: 0,
-    glassTop: 'rgba(255,255,255,0.5)', glassBot: 'rgba(255,255,255,0.22)', rim: 'rgba(255,255,255,0.65)', shine: 'rgba(255,255,255,0.9)', gsub: 'rgba(29,29,31,0.72)', liquid: 'rgba(255,255,255,0.3)' },
+    glassTop: 'rgba(255,255,255,0.5)', glassBot: 'rgba(255,255,255,0.22)', rim: 'rgba(255,255,255,0.65)', shine: 'rgba(255,255,255,0.9)', gsub: 'rgba(29,29,31,0.72)', liquid: 'rgba(255,255,255,0.3)', attention: '#9a6700' },
   // 다크는 GitHub 다크 테마 색에 맞춤: 카드 = 페이지 배경(#0d1117) + 테두리만 (라이트와 같은 방식)
   dark: { card: '#0d1117', line: '#3d444d', divider: '#262c36', dash: '#3d444d', chip: '#262c36', ink: '#f0f6fc', sub: '#9198a1', link: '#4493f8', zero: '#3d444d', bar: '#3d444d', dim: 0.08,
-    glassTop: 'rgba(40,46,56,0.55)', glassBot: 'rgba(13,17,23,0.4)', rim: 'rgba(255,255,255,0.18)', shine: 'rgba(255,255,255,0.25)', gsub: 'rgba(240,246,252,0.72)', liquid: 'rgba(13,17,23,0.36)' },
+    glassTop: 'rgba(40,46,56,0.55)', glassBot: 'rgba(13,17,23,0.4)', rim: 'rgba(255,255,255,0.18)', shine: 'rgba(255,255,255,0.25)', gsub: 'rgba(240,246,252,0.72)', liquid: 'rgba(13,17,23,0.36)', attention: '#d29922' },
 }
 const OFFLINE = '#8e8e93'
 const SANS = "'IBM Plex Sans KR',-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic',system-ui,sans-serif"
@@ -244,35 +245,55 @@ ${caption ? txt(px + 22, py + 25, caption, 15, t.ink, ' font-weight="600"') : ''
 <rect x="0.5" y="0.5" width="${W - 1}" height="${H - 1}" rx="18" fill="none" stroke="${t.line}"/>`]
 }
 
-// 프로젝트 카드 한 장. 줄 사이 구분선은 아이콘 오른쪽부터
-const projects = (d, t) => {
-  const H = 48 + CONFIG.projects.length * 72 + 8
-  return [H, `${card(0, 0, W, H, t)}${title(24, 36, 'Projects - Veritas', t)}${txt(W - 24, 36, 'AX for everything', 12, t.sub, ' text-anchor="end"')}\n` + CONFIG.projects.map((p, i) => {
-    const top = 48 + i * 72, cy = top + 36, iy = top + 16, planned = p.status === 'planned'
-    const bw = planned ? Math.round(textW('Planned', 12) + 28) : 0, bx = W - 24 - bw // 배지는 예정에만
-    const lx = p.lang ? (bw ? bx - 12 : bx) - textW(p.lang, 12) : bx // 언어 글자 시작점
-    const icon = p.icon
-      ? `<g opacity="${planned ? 0.6 : 1}"><clipPath id="ic${i}"><rect x="24" y="${iy}" width="40" height="40" rx="11"/></clipPath><image href="${dataUri(p.icon)}" x="24" y="${iy}" width="40" height="40" preserveAspectRatio="xMidYMid slice" clip-path="url(#ic${i})"/><rect x="24.5" y="${iy + 0.5}" width="39" height="39" rx="11" fill="none" stroke="${t.line}"/></g>`
-      : planned
-        ? `<rect x="24.5" y="${iy + 0.5}" width="39" height="39" rx="11" fill="none" stroke="${t.dash}" stroke-dasharray="4 3"/>`
-        : `<rect x="24" y="${iy}" width="40" height="40" rx="11" fill="${t.chip}"/>${txt(44, iy + 26, [...p.name][0].toUpperCase(), 17, t.ink, ' font-weight="600" text-anchor="middle"')}`
-    const desc = wrap(p.desc ?? '', lx - (p.lang ? 14 : 0) - 16 - 80, 13, 1)[0] ?? ''
-    const badge = planned
-      ? `<rect x="${bx + 0.5}" y="${cy - 9.5}" width="${bw - 1}" height="19" rx="9.5" fill="none" stroke="${t.line}"/><circle cx="${bx + 11}" cy="${cy}" r="2.25" fill="none" stroke="${OFFLINE}" stroke-width="1.5"/>${txt(bx + 20, cy + 4, 'Planned', 12, t.sub)}`
-      : ''
-    const lang = p.lang
-      ? `<circle cx="${lx - 10}" cy="${cy}" r="4" fill="${d.langs.find(l => l.name === p.lang)?.color ?? t.sub}"/>${txt(lx, cy + 4, p.lang, 12, t.sub)}`
-      : ''
-    return `${i ? `<line x1="80" y1="${top + 0.5}" x2="${W - 24}" y2="${top + 0.5}" stroke="${t.divider}"/>` : ''}${icon}
-${txt(80, top + 31, p.name, 15, t.ink, ' font-weight="600"')}${txt(80, top + 51, desc, 13, t.sub)}
-${lang}${badge}`
-  }).join('\n')]
+// 프로젝트 카드는 README에서 줄마다 다른 링크를 걸 수 있게 '제목 조각 + 줄 조각'으로 잘라 그림.
+// 조각끼리 빈틈없이 이어 붙으면 카드 한 장처럼 보임. edge: 'top'은 위 모서리만, 'bottom'은 아래 모서리만 둥글게
+const R = 18
+const slice = (h, t, edge) => {
+  const o = 0.5, r = R - o
+  const fill = edge === 'top' ? `M0 ${h}V${R}A${R} ${R} 0 0 1 ${R} 0H${W - R}A${R} ${R} 0 0 1 ${W} ${R}V${h}Z`
+    : edge === 'bottom' ? `M0 0V${h - R}A${R} ${R} 0 0 0 ${R} ${h}H${W - R}A${R} ${R} 0 0 0 ${W} ${h - R}V0Z`
+      : `M0 0H${W}V${h}H0Z`
+  const line = edge === 'top' ? `M${o} ${h}V${R}A${r} ${r} 0 0 1 ${R} ${o}H${W - R}A${r} ${r} 0 0 1 ${W - o} ${R}V${h}`
+    : edge === 'bottom' ? `M${o} 0V${h - R}A${r} ${r} 0 0 0 ${R} ${h - o}H${W - R}A${r} ${r} 0 0 0 ${W - o} ${h - R}V0`
+      : `M${o} 0V${h}M${W - o} 0V${h}`
+  return `<path d="${fill}" fill="${t.card}"/><path d="${line}" fill="none" stroke="${t.line}"/>`
+}
+const projectsHead = (d, t) => [48, `${slice(48, t, 'top')}${title(24, 36, 'Projects - Veritas', t)}${txt(W - 24, 36, 'AX for everything', 12, t.sub, ' text-anchor="end"')}`]
+
+// 줄 하나. 구분선은 아이콘 오른쪽부터. 배지: planned는 회색 빈 점, archived는 노란 빈 점
+const BADGES = { planned: ['Planned', () => OFFLINE], archived: ['Archived', t => t.attention] }
+const projectRow = (p, i, last) => (d, t) => {
+  const h = last ? 80 : 72, cy = 36, iy = 16, planned = p.status === 'planned', badgeOf = BADGES[p.status]
+  const bw = badgeOf ? Math.round(textW(badgeOf[0], 12) + 28) : 0, bx = W - 24 - bw
+  const lx = p.lang ? (bw ? bx - 12 : bx) - textW(p.lang, 12) : bx // 언어 글자 시작점
+  const icon = p.icon
+    ? `<g opacity="${planned ? 0.6 : 1}"><clipPath id="ic"><rect x="24" y="${iy}" width="40" height="40" rx="11"/></clipPath><image href="${dataUri(p.icon)}" x="24" y="${iy}" width="40" height="40" preserveAspectRatio="xMidYMid slice" clip-path="url(#ic)"/><rect x="24.5" y="${iy + 0.5}" width="39" height="39" rx="11" fill="none" stroke="${t.line}"/></g>`
+    : planned
+      ? `<rect x="24.5" y="${iy + 0.5}" width="39" height="39" rx="11" fill="none" stroke="${t.dash}" stroke-dasharray="4 3"/>`
+      : `<rect x="24" y="${iy}" width="40" height="40" rx="11" fill="${t.chip}"/>${txt(44, iy + 26, [...p.name][0].toUpperCase(), 17, t.ink, ' font-weight="600" text-anchor="middle"')}`
+  const desc = wrap(p.desc ?? '', lx - (p.lang ? 14 : 0) - 16 - 80, 13, 1)[0] ?? ''
+  const badge = badgeOf
+    ? `<rect x="${bx + 0.5}" y="${cy - 9.5}" width="${bw - 1}" height="19" rx="9.5" fill="none" stroke="${t.line}"/><circle cx="${bx + 11}" cy="${cy}" r="2.25" fill="none" stroke="${badgeOf[1](t)}" stroke-width="1.5"/>${txt(bx + 20, cy + 4, badgeOf[0], 12, t.sub)}`
+    : ''
+  const lang = p.lang
+    ? `<circle cx="${lx - 10}" cy="${cy}" r="4" fill="${d.langs.find(l => l.name === p.lang)?.color ?? t.sub}"/>${txt(lx, cy + 4, p.lang, 12, t.sub)}`
+    : ''
+  return [h, `${slice(h, t, last ? 'bottom' : 'mid')}${i ? `<line x1="80" y1="0.5" x2="${W - 24}" y2="0.5" stroke="${t.divider}"/>` : ''}${icon}
+${txt(80, 31, p.name, 15, t.ink, ' font-weight="600"')}${txt(80, 51, desc, 13, t.sub)}
+${lang}${badge}`]
 }
 
-const picture = (name, alt) => `<picture>
+// tight: 한 줄로 붙여 쓰고 align="top"을 줘서 그림 아래 글자 줄 틈이 안 생기게(조각 이어 붙이기용)
+const picture = (name, alt, tight) => tight
+  ? `<picture><source media="(prefers-color-scheme: dark)" srcset="assets/${name}-dark.svg"><img src="assets/${name}-light.svg" width="100%" align="top" alt="${esc(alt)}"></picture>`
+  : `<picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/${name}-dark.svg">
   <img src="assets/${name}-light.svg" width="100%" alt="${esc(alt)}">
 </picture>`
+const projectsBlock = () => `<p>${picture('projects-0', 'Projects - Veritas', true)}${CONFIG.projects.map((p, i) => {
+  const pic = picture(`projects-${i + 1}`, p.name, true)
+  return p.url ? `<a href="${esc(p.url)}">${pic}</a>` : pic
+}).join('')}</p>`
 
 // GitHub README의 <img> SVG는 외부 글꼴을 못 불러옴 → 쓰인 글자만 잘라 base64로 박음
 async function fontCss(chars) {
@@ -293,7 +314,11 @@ async function fontCss(chars) {
 
 const { GH_USER, GITHUB_TOKEN } = process.env
 const d = GITHUB_TOKEN ? await fetchData(GH_USER, GITHUB_TOKEN) : DEMO
-const cards = { header, stats, hours, projects, ...(BANNER.image && { banner }) }
+const cards = {
+  header, stats, hours, 'projects-0': projectsHead,
+  ...Object.fromEntries(CONFIG.projects.map((p, i, all) => [`projects-${i + 1}`, projectRow(p, i, i === all.length - 1)])),
+  ...(BANNER.image && { banner }),
+}
 const out = []
 for (const [name, render] of Object.entries(cards))
   for (const [mode, t] of Object.entries(THEMES)) {
@@ -314,5 +339,6 @@ const setBlock = (md, name, html) => {
 let readme = readFileSync('README.md', 'utf8')
 const { image, caption, credit } = BANNER, pic = picture('banner', caption || '배너 이미지')
 readme = setBlock(readme, 'banner', !image ? '' : `<p>\n${credit ? `<a href="${esc(credit.url)}">\n${pic}\n</a>` : pic}\n</p>`)
+readme = setBlock(readme, 'projects', projectsBlock())
 writeFileSync('README.md', readme)
 console.log(`${GITHUB_TOKEN ? `rendered for ${GH_USER}` : 'no GITHUB_TOKEN → demo data'} → ${out.length} files, fonts ${fonts ? 'embedded' : 'system'}`)
